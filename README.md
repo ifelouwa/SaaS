@@ -1,36 +1,74 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Atelier — Salon Appointment Scheduling SaaS
 
-## Getting Started
+A multi-tenant SaaS platform where salon owners subscribe to manage their staff, service menus, operating hours, and appointments, while clients book seamlessly online without platform fees.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🛠 Technology Stack
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Partial Prerendering, Server Actions)
+- **Database & ORM**: PostgreSQL via [Prisma ORM](https://www.prisma.io/) with `@prisma/adapter-pg`
+- **Authentication**: [Auth.js / NextAuth v5](https://authjs.dev/) with bcrypt password hashing
+- **Billing**: [Stripe Billing](https://stripe.com/billing) (Subscriptions, Customer Portal, Webhooks)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🚀 Key Features
 
-## Learn More
+### 1. Authentication & Multi-Tenant Guarding
+- **Owner Authentication**: Sign in and registration with atomic tenant creation.
+- **Tenant Isolation**: Each salon is tied to `Salon.ownerId`. Public booking URLs are slug-based (`/book/:slug`).
+- **Subscription Route Guard**: Middleware intercepts protected `/dashboard/*` routes. If a subscription is `PAST_DUE`, `CANCELED`, or expired, the owner is automatically redirected to the billing portal (`/dashboard/billing`), locking booking and dashboard mutations.
 
-To learn more about Next.js, take a look at the following resources:
+### 2. Booking Availability Engine
+- **Availability API**: `GET /api/salons/[slug]/availability?date=YYYY-MM-DD&serviceId=...&staffId=...`
+- **Schedule Intersection**: Intersects `SalonHour` business hours with `StaffSchedule` blocks (supporting split shifts).
+- **Conflict Subtraction**: Subtracts existing confirmed appointments on a 15-minute grid based on `Service.durationMinutes`.
+- **Booking Wizard**: 4-step guest flow at `/book/:slug` (Service $\rightarrow$ Stylist $\rightarrow$ Date & Time $\rightarrow$ Contact Details) with automatic client profile linking.
+- **Auto-Seeded Demo**: Visiting `/book/demo-salon` automatically provisions sample stylists, split shifts, and services for immediate testing.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 3. Stripe Subscription Billing
+- **Checkout Sessions**: `POST /api/billing/checkout` creates Stripe Checkout sessions in `subscription` mode for `STARTER` ($29/mo) or `GROWTH` ($79/mo) plans.
+- **Stripe Webhooks**: `POST /api/billing/webhook` listens for subscription lifecycles:
+  - `checkout.session.completed`
+  - `customer.subscription.created`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+  - `invoice.payment_succeeded` / `invoice.payment_failed`
+- **Customer Portal**: `POST /api/billing/portal` generates Stripe Customer Portal sessions for payment method updates and invoice history.
+- **Development Simulator**: Interactive state switcher on `/dashboard/billing` allowing live toggling between `ACTIVE`, `TRIALING`, `PAST_DUE`, and `CANCELED` to verify tenant guards instantly.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## ⚙️ Local Development
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+1. **Environment Setup**:
+   Copy `.env.example` to `.env` and configure your database and auth secret:
+   ```env
+   DATABASE_URL="postgresql://postgres:postgres@localhost:5432/atelier?schema=public"
+   AUTH_SECRET="your-32-character-secret"
+   STRIPE_SECRET_KEY="sk_test_..."
+   STRIPE_WEBHOOK_SECRET="whsec_..."
+   STRIPE_PRICE_STARTER="price_..."
+   STRIPE_PRICE_GROWTH="price_..."
+   ```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+2. **Install Dependencies & Generate Prisma**:
+   ```bash
+   npm install
+   npx prisma generate
+   npx prisma db push
+   ```
+
+3. **Run the Development Server**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000).
+
+4. **Verify Build & Lint**:
+   ```bash
+   npm run build
+   npm run lint
+   ```
